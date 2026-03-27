@@ -1,0 +1,41 @@
+# docker-compose.yml for local development
+# workflow-orchestration-queue
+
+services:
+  notifier:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - GITHUB_WEBHOOK_SECRET=${GITHUB_WEBHOOK_SECRET:-}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
+  sentinel:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - REPO_SLUG=${REPO_SLUG:-}
+      - SENTINEL_ID=${SENTINEL_ID:-sentinel-01}
+      - SENTINEL_BOT_LOGIN=${SENTINEL_BOT_LOGIN:-sentinel-bot[bot]}
+      - POLL_INTERVAL=${POLL_INTERVAL:-60}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    command: ["python", "-m", "src.orchestrator_sentinel"]
+    depends_on:
+      notifier:
+        condition: service_healthy
+    restart: unless-stopped
+
+networks:
+  default:
+    name: orchestration-network
